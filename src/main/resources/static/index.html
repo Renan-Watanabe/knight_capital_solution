@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knight Capital - Painel de Controle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-900 text-white font-mono p-8">
+
+<div class="max-w-6xl mx-auto">
+    <header class="flex justify-between items-center border-b border-gray-700 pb-4 mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-red-500">KNIGHT CAPITAL SIMULATOR</h1>
+            <p class="text-gray-400 text-sm">Monitoramento de Alta Frequência (HFT) e Resiliência</p>
+        </div>
+        <div id="status-badge" class="px-4 py-2 bg-green-900 text-green-300 rounded font-bold border border-green-500 shadow-lg shadow-green-900/50">
+            SISTEMA ONLINE - MERCADO NORMAL
+        </div>
+    </header>
+
+    <div class="grid grid-cols-3 gap-6 mb-8">
+        <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-md">
+            <h3 class="text-gray-400 text-sm mb-1">Saldo Inicial</h3>
+            <p class="text-2xl font-bold">$ 400.000.000,00</p>
+        </div>
+        <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-md">
+            <h3 class="text-gray-400 text-sm mb-1">Saldo Atual</h3>
+            <p id="saldo-atual" class="text-3xl font-bold text-blue-400 transition-colors duration-300">$ 400.000.000,00</p>
+        </div>
+        <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-md relative overflow-hidden">
+            <h3 class="text-gray-400 text-sm mb-1">Total Perdido (Prejuízo)</h3>
+            <p id="total-perdido" class="text-3xl font-bold text-red-400 transition-colors duration-300">$ 0,00</p>
+        </div>
+    </div>
+
+    <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 mb-8 h-[400px] shadow-md relative">
+        <div id="loading-overlay" class="absolute inset-0 flex items-center justify-center bg-gray-800/80 z-10 rounded-lg">
+            <p class="text-gray-400 animate-pulse">Conectando ao Motor Java...</p>
+        </div>
+        <canvas id="graficoSaldo"></canvas>
+    </div>
+
+    <div class="flex gap-4">
+        <button id="btn-glitch" class="px-8 py-4 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded shadow-[0_0_15px_rgba(202,138,4,0.5)] transition-all hover:scale-105 active:scale-95">
+            ⚠️ ATIVAR GLITCH (Simular Bug do Power Peg)
+        </button>
+    </div>
+</div>
+
+<script>
+    // =================================================================
+    // 1. CONFIGURAÇÃO DO GRÁFICO (CHART.JS)
+    // =================================================================
+    const ctx = document.getElementById('graficoSaldo').getContext('2d');
+    const grafico = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Saldo da Corretora ($)',
+                data: [],
+                borderColor: '#3b82f6', // Azul do Tailwind
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderWidth: 2,
+                pointRadius: 0, // Sem bolinhas, bem fluído
+                fill: true,
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false, // Desligado para fluidez em tempo real
+            scales: {
+                y: {
+                    suggestedMin: 399500000,
+                    suggestedMax: 400100000,
+                    grid: { color: '#374151' }
+                },
+                x: { display: false } // Esconde o eixo X
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // =================================================================
+    // 2. LÓGICA DE COMUNICAÇÃO COM O JAVA (POLLING)
+    // =================================================================
+    let tempo = 0;
+    let killSwitchAcionadoNoFront = false;
+    let primeiraCarga = true;
+
+    const atualizador = setInterval(() => {
+        // Pergunta o status pro Java
+        fetch('/api/status')
+            .then(resposta => {
+                if(!resposta.ok) throw new Error("Java offline");
+                return resposta.json();
+            })
+            .then(dados => {
+                // Tira o aviso de "Carregando" na primeira vez que der certo
+                if(primeiraCarga) {
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    primeiraCarga = false;
+                }
+
+                const saldoAtual = dados.saldo;
+                const killSwitchReal = dados.killSwitchAtivado;
+                const prejuizo = 400000000 - saldoAtual;
+
+                // 1. Atualiza os textos da tela
+                document.getElementById('saldo-atual').innerText = `$ ${saldoAtual.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+                // Se o prejuízo for negativo (estamos ganhando dinheiro), mostra $ 0,00 ou verde.
+                // Aqui vamos cravar em zero ou o valor real perdido.
+                if (prejuizo <= 0) {
+                    document.getElementById('total-perdido').innerText = `$ 0,00`;
+                    document.getElementById('total-perdido').classList.replace('text-red-400', 'text-green-400');
+                } else {
+                    document.getElementById('total-perdido').innerText = `$ ${prejuizo.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    document.getElementById('total-perdido').classList.replace('text-green-400', 'text-red-400');
+                }
+
+                // 2. Atualiza a linha do Gráfico
+                tempo++;
+                grafico.data.labels.push(tempo);
+                grafico.data.datasets[0].data.push(saldoAtual);
+
+                // Mantém apenas os últimos 60 pontos na tela (efeito esteira)
+                if (grafico.data.labels.length > 60) {
+                    grafico.data.labels.shift();
+                    grafico.data.datasets[0].data.shift();
+                }
+                grafico.update();
+
+                // 3. Checa o Kill Switch! Se o Java desarmou o sistema, a tela avisa.
+                if (killSwitchReal && !killSwitchAcionadoNoFront) {
+                    killSwitchAcionadoNoFront = true;
+                    clearInterval(atualizador); // Para de puxar dados do Java
+
+                    // Muda toda a interface para o modo de Emergência
+                    const badge = document.getElementById('status-badge');
+                    badge.className = "px-4 py-2 bg-red-900 text-red-300 rounded font-bold border border-red-500 animate-pulse shadow-[0_0_20px_rgba(220,38,38,0.8)]";
+                    badge.innerText = "🚨 AUTO KILL SWITCH ACIONADO - SISTEMA SALVO 🚨";
+
+                    const btn = document.getElementById('btn-glitch');
+                    btn.disabled = true;
+                    btn.className = "px-8 py-4 bg-gray-700 text-gray-500 font-bold rounded cursor-not-allowed";
+                    btn.innerText = "SIMULAÇÃO ENCERRADA";
+
+                    // Fica a linha do gráfico vermelha pra dramatizar
+                    grafico.data.datasets[0].borderColor = '#ef4444';
+                    grafico.data.datasets[0].backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                    grafico.update();
+                }
+            })
+            .catch(erro => console.error("Erro ao conectar no motor:", erro));
+    }, 150); // Velocidade do painel: atualiza a cada 150 milissegundos
+
+    // =================================================================
+    // 3. O GATILHO (BOTÃO DE GLITCH)
+    // =================================================================
+    document.getElementById('btn-glitch').addEventListener('click', () => {
+        if (killSwitchAcionadoNoFront) return;
+
+        // Muda o visual do botão e do badge
+        const badge = document.getElementById('status-badge');
+        badge.className = "px-4 py-2 bg-yellow-900 text-yellow-300 rounded font-bold border border-yellow-500 shadow-[0_0_15px_rgba(202,138,4,0.6)]";
+        badge.innerText = "⚠️ GLITCH ATIVADO - QUEDA LIVRE";
+
+        document.getElementById('btn-glitch').innerText = "GLITCH EM ANDAMENTO...";
+
+        // Avisa o Java pra ligar as Threads do Caos!
+        fetch('/api/glitch', { method: 'POST' })
+            .then(() => console.log("Comando de ataque enviado pro Motor!"))
+            .catch(erro => console.error("Erro ao mandar o Glitch:", erro));
+    });
+</script>
+</body>
+</html>
