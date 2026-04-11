@@ -27,7 +27,7 @@ public class ChaosSimulatorService {
 
     public void initializeMarket() {
     this.mercadoAberto = true;
-    System.out.println("SISTEMA ONLIINE: Mercado Rodando");
+    System.out.println("SISTEMA ONLINE: Mercado Rodando");
 
     new Thread(() -> {
         Random random = new Random();

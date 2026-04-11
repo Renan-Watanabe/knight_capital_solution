@@ -22,7 +22,7 @@ public class VolumeAnomalyPolicy implements SecurityPolicy {
         long timer = secondTimer.get();
 
         // Depois de um segundo, zera o contador
-        if (now - timer >= 100) {
+        if (now - timer >= 1000) {
             //Tenta atualizar o timer, caso consiga, zera as ordens.
             if (secondTimer.compareAndSet(timer, now)) {
                 ordersInCurrentSecond.set(0);
