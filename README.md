@@ -5,7 +5,7 @@ Este projeto é uma Prova de Conceito desenvolvida para simular o cenário de fa
 A solução foi estruturada seguindo princípios de Clean Architecture e SOLID, garantindo que as regras de segurança sejam independentes da lógica de negócio.
 
 ## Camadas e Componentes:
-domain: Contém a classe Account, que gerencia o saldo de forma atômica utilizando métodos sincronizados para garantir a consistência em ambientes multithreading.
+domain: Contém a classe Account, que gerencia o saldo utilizando métodos sincronizados para garantir a consistência em ambientes multithreading.
 
 security: Camada de proteção que utiliza o Strategy Pattern. Todas as defesas implementam a interface SecurityPolicy.
 
@@ -19,7 +19,7 @@ KillSwitch: Mecanismo de interrupção imediata que bloqueia o sistema ao detect
 
 TradeProcessor: O maestro que executa ordens e valida todas as políticas de segurança antes de confirmar a transação.
 
-ChaosSimulatorService: Gerencia as duas fases da simulação: o comportamento estocástico do mercado normal e o ataque de falha algorítmica (Power Peg).
+ChaosSimulatorService: Gerencia as duas fases da simulação: o comportamento estocástico do mercado normal e o ataque de falha (Power Peg).
 
 infrastructure: Responsável pela configuração do Spring (AppConfig) e exposição de endpoints REST (DashboardController) para o monitoramento em tempo real.
 
